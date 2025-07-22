@@ -21,16 +21,18 @@ git clone "$REPO_URL" /tmp/temp_repo
 cd /tmp/temp_repo
 
 # Update the image in the Kubernetes manifest
-# Example: k8s-manifests/vote-deployment.yaml
-sed -i "s|image:.*|image: ${IMAGE_NAME}:${TAG}|g" k8s-manifests/${SERVICE_NAME}-deployment.yaml
+sed -i "s|image:.*|image: ${IMAGE_NAME}:${TAG}|g" kubernetes/deployment.yaml
 
 # Configure Git user for CI
 git config user.email "ci@automation.com"
 git config user.name "GitHub Actions CI"
 
-# Commit and push changes
+# Commit with date and time
+COMMIT_DATE=$(date +"%Y-%m-%d %H:%M:%S")
 git add .
-git commit -m "Update ${SERVICE_NAME} image to ${IMAGE_NAME}:${TAG}"
+git commit -m "Update ${SERVICE_NAME} image to ${IMAGE_NAME}:${TAG} at ${COMMIT_DATE}"
+
+# Push changes
 git push
 
 # Clean up

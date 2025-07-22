@@ -1,33 +1,44 @@
 #!/bin/bash
 
-set -e
-set -x
+set -e  # Exit on error
+set -x  # Print commands for debugging
 
-if [ $# -ne 3 ]; then
-  echo "Usage: $0 <service-name> <image-name> <tag>"
+# Usage check
+if [ "$#" -ne 3 ]; then
+  echo "Usage: $0 <github-repo-url> <image-name> <image-tag>"
+  echo "Example: $0 https://github.com/akylgit/small-project-deployment.git mydockerhubuser/k8s-demo v1.0.0"
   exit 1
 fi
 
-SERVICE_NAME="$1"
-IMAGE_NAME="$2"
-TAG="$3"
+GITHUB_REPO_URL=$1    # GitHub HTTPS repo URL
+IMAGE_NAME=$2         # Docker image name
+IMAGE_TAG=$3          # New tag
 
-# Clone without token first
-git clone https://github.com/akylgit/small-project-deployment.git /tmp/temp_repo
-cd /tmp/temp_repo
+# Use PAT_TOKEN instead of GITHUB_TOKEN
+if [ -z "$PAT_TOKEN" ]; then
+  echo "Error: PAT_TOKEN env variable is not set."
+  exit 1
+fi
 
-# Set remote URL with token for pushing
-git remote set-url origin https://${GITHUB_PAT}@github.com/akylgit/small-project-deployment.git
+# Inject token into the repo URL
+AUTH_REPO_URL=$(echo "$GITHUB_REPO_URL" | sed "s#https://#https://${PAT_TOKEN}@#")
 
-sed -i "s|image:.*|image: ${IMAGE_NAME}:${TAG}|g" kubernetes/deployment.yaml
+# Clone to temporary folder
+TEMP_DIR=$(mktemp -d)
+git clone "$AUTH_REPO_URL" "$TEMP_DIR"
+cd "$TEMP_DIR" || exit
 
-git config user.email "ci@automation.com"
-git config user.name "GitHub Actions CI"
+# Update deployment.yaml
+sed -i "s|image:.*|image: ${IMAGE_NAME}:${IMAGE_TAG}|g" kubernetes/deployment.yaml
 
-COMMIT_DATE=$(date +"%Y-%m-%d %H:%M:%S")
-git add .
-git commit -m "Update deployment image to ${IMAGE_NAME}:${TAG} at ${COMMIT_DATE}"
+# Git config
+git config user.name "automation-bot"
+git config user.email "bot@example.com"
 
+# Commit + Push
+git add kubernetes/deployment.yaml
+git commit -m "Update image to ${IMAGE_NAME}:${IMAGE_TAG}"
 git push
 
-rm -rf /tmp/temp_repo
+# Cleanup
+rm -rf "$TEMP_DIR"

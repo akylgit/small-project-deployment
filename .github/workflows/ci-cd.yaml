@@ -21,6 +21,7 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build and push Docker image
+        id: docker_build
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -30,6 +31,13 @@ jobs:
 
       - name: Set up kubectl
         uses: azure/setup-kubectl@v3
+
+      - name: Make script executable
+        run: chmod +x scripts/updatek8manifests.sh
+
+      - name: Update Kubernetes manifests
+        run: |
+          ./scripts/updatek8manifests.sh deployment ${{ secrets.DOCKER_USERNAME }}/k8s-demo latest
 
       - name: Apply Kubernetes Manifests
         run: |

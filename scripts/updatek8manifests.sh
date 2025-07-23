@@ -1,9 +1,9 @@
 #!/bin/bash
 
-set -e
+# Usage: ./update_k8s.sh <GITHUB_REPO_URL> <IMAGE_NAME> <IMAGE_TAG>
 
 if [ "$#" -ne 3 ]; then
-  echo "Usage: $0 <github_repo_url> <image_name> <image_tag>"
+  echo "Usage: $0 <GITHUB_REPO_URL> <IMAGE_NAME> <IMAGE_TAG>"
   exit 1
 fi
 
@@ -11,25 +11,32 @@ GITHUB_REPO_URL=$1
 IMAGE_NAME=$2
 IMAGE_TAG=$3
 
+# Check for PAT_TOKEN env variable
 if [ -z "$PAT_TOKEN" ]; then
   echo "Error: PAT_TOKEN env variable is not set."
   exit 1
 fi
 
-TEMP_DIR=$(mktemp -d)
-REPO_NAME=$(basename "$GITHUB_REPO_URL" .git)
+# Extract repo name
+REPO_NAME=$(basename -s .git "$GITHUB_REPO_URL")
 
+# Clone the repository using PAT_TOKEN
 echo "Cloning repo..."
-git clone "https://$PAT_TOKEN@${GITHUB_REPO_URL#https://}" "$TEMP_DIR/$REPO_NAME"
+AUTH_REPO_URL=$(echo "$GITHUB_REPO_URL" | sed "s#https://#https://${PAT_TOKEN}@#")
+git clone "$AUTH_REPO_URL"
 
-cd "$TEMP_DIR/$REPO_NAME"
+cd "$REPO_NAME" || { echo "Failed to cd into repo"; exit 1; }
 
-echo "Updating image in deployment.yaml..."
-sed -i "s|image: .*|image: ${IMAGE_NAME}:${IMAGE_TAG}|g" kubernetes/deployment.yaml
+# Update the image tag in the deployment YAML (assumes only one container image line exists)
+echo "Updating image to $IMAGE_NAME:$IMAGE_TAG..."
+sed -i.bak "s|image:.*|image: $IMAGE_NAME:$IMAGE_TAG|" k8s/deployment.yaml
 
-echo "Committing and pushing changes..."
-git config user.name "GitHub Actions Bot"
+# Git commit and push
 git config user.email "actions@github.com"
-git add kubernetes/deployment.yaml
-git commit -m "Update image to ${IMAGE_NAME}:${IMAGE_TAG}"
+git config user.name "GitHub Actions"
+
+git add k8s/deployment.yaml
+git commit -m "Update image to $IMAGE_NAME:$IMAGE_TAG"
 git push origin main
+
+echo "✅ Image updated and changes pushed."
